@@ -1,4 +1,5 @@
 #include <iostream>
+#include <bitset>
 
 #include <pcap/pcap.h>
 
@@ -18,9 +19,13 @@ int numpcap(pcap_t* pcap) {
       break;
     } else if (t == 1){
       packets++;
-      const u_char* ip = data+14; 
-      
+      const u_char* ipheader = data+14; 
+      const u_char* sourceIP = ipheader + 12;      
+      const u_char* destIP = sourceIP + 4;
+
       std::cout << "Packet " << packets;
+      std::cout << " Source IP: " << int(sourceIP[0]) << "." << int(sourceIP[1]) << "." << int(sourceIP[2]) << "." << int(sourceIP[3]);
+      std::cout << " Destiantion IP: " << int(destIP[0]) << "." << int(destIP[1]) << "." << int(destIP[2]) << "." << int(destIP[3]);
       std::cout << " Size: " << header->len << "\n";  
     }
   }
