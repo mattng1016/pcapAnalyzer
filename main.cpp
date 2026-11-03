@@ -107,8 +107,7 @@ void printPort(const u_char *dataTransport) {
   std::cout << std::setw(10) << destPortValue;
 }
 
-void printProtocol(const u_char *dataIPv4) {
-  const u_char *protocol = dataIPv4 + 9;
+void printProtocol(const u_char *protocol) {
   if (protocol[0] == 6) {
     std::cout << std::setw(10) << "TCP";
   } else if (protocol[0] == 17) {
@@ -131,6 +130,7 @@ bool checkIPVersion(const u_char *data) {
 void printPacket(pcap_pkthdr *header, const u_char *data) {
   const u_char *ipheader;
   int headerLength;
+  const u_char *protocol;
   const u_char *transportHeader;
   int version;
   if (header->caplen < 14) {
@@ -143,10 +143,12 @@ void printPacket(pcap_pkthdr *header, const u_char *data) {
     // IPV4
     headerLength = ipheader[0] & 0xF;
     transportHeader = ipheader + (headerLength * 4);
+    protocol = ipheader + 9;
     version = 4;
   } else {
     // IPV6
     transportHeader = ipheader + 40;
+    protocol = ipheader + 6;
     version = 6;
   }
 
@@ -156,7 +158,7 @@ void printPacket(pcap_pkthdr *header, const u_char *data) {
   } else if (version == 6) {
     printIPv6(ipheader);
   }
-  printProtocol(ipheader);
+  printProtocol(protocol);
   printPort(transportHeader);
   std::endl(std::cout);
 }
