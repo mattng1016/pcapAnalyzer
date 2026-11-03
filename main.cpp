@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
 
@@ -6,20 +7,33 @@
 
 #define IP_WIDTH 41
 
-void printIPv4(const u_char *dataIPv4) {
+struct PacketInfo {
+  std::string sourceIP;
+  std::string destIP;
+  int protocol = -1;
+  int sourcePort = -1;
+  int destPort = -1;
+  std::string status;
+};
+
+struct pcapInfo {
+  int totalPackets = 0;
+  uint64_t capturedBytes = 0;
+  int tcpPackets = 0;
+  int udpPackets = 0;
+};
+
+void parseIPv4(const u_char *dataIPv4, PacketInfo *p) {
   const u_char *sourceIP = dataIPv4 + 12;
   const u_char *destIP = sourceIP + 4;
-
   std::string source =
       std::to_string(sourceIP[0]) + "." + std::to_string(sourceIP[1]) + "." +
       std::to_string(sourceIP[2]) + "." + std::to_string(sourceIP[3]);
-
   std::string dest =
       std::to_string(destIP[0]) + "." + std::to_string(destIP[1]) + "." +
       std::to_string(destIP[2]) + "." + std::to_string(destIP[3]);
-
-  std::cout << std::setw(IP_WIDTH) << source;
-  std::cout << std::setw(IP_WIDTH) << dest;
+  p->sourceIP = source;
+  p->destIP = dest;
 }
 
 std::string shrinkZero(u_int16_t (&group)[8]) {
@@ -69,7 +83,7 @@ std::string shrinkZero(u_int16_t (&group)[8]) {
   return s.str();
 }
 
-void printIPv6(const u_char *dataIPv6) {
+void parseIPv6(const u_char *dataIPv6, PacketInfo *p) {
   const u_char *sourceIP = dataIPv6 + 8;
   const u_char *destIP = sourceIP + 16;
 
@@ -89,30 +103,23 @@ void printIPv6(const u_char *dataIPv6) {
     tempaddr = tempaddr + 2;
   }
 
-  std::string s = shrinkZero(sourceGroup);
-  std::string d = shrinkZero(destGroup);
-
-  std::cout << std::setw(41) << s;
-  std::cout << std::setw(41) << d;
+  p->sourceIP = shrinkZero(sourceGroup);
+  p->destIP = shrinkZero(destGroup);
 }
 
-void printPort(const u_char *dataTransport) {
+void parsePort(const u_char *dataTransport, PacketInfo *p) {
   const u_char *sourcePort = dataTransport;
   u_int16_t sourcePortValue = 0;
   sourcePortValue = (sourcePort[0] << 8) | sourcePort[1];
   const u_char *destPort = sourcePort + 2;
   u_int16_t destPortValue = 0;
   destPortValue = (destPort[0] << 8) | destPort[1];
-  std::cout << std::setw(10) << sourcePortValue;
-  std::cout << std::setw(10) << destPortValue;
+  p->sourcePort = sourcePortValue;
+  p->destPort = destPortValue;
 }
 
-void printProtocol(const u_char *protocol) {
-  if (protocol[0] == 6) {
-    std::cout << std::setw(10) << "TCP";
-  } else if (protocol[0] == 17) {
-    std::cout << std::setw(10) << "UDP";
-  }
+void parseProtocol(const u_char *protocol, PacketInfo *p) {
+  p->protocol = protocol[0];
 }
 
 bool checkIPVersion(const u_char *data) {
@@ -127,50 +134,125 @@ bool checkIPVersion(const u_char *data) {
   return false;
 }
 
-void printPacket(pcap_pkthdr *header, const u_char *data) {
-  const u_char *ipheader;
-  int headerLength;
-  const u_char *protocol;
-  const u_char *transportHeader;
-  int version;
+PacketInfo parsePacket(const pcap_pkthdr *header, const u_char *data) {
+  PacketInfo packet;
+
   if (header->caplen < 14) {
-    std::cout << "Error reading this packet \n";
-    return;
+    packet.status = "Truncated Ethernet";
+    return packet;
   }
-  ipheader = data + 14;
 
-  if (checkIPVersion(data)) {
-    // IPV4
-    headerLength = ipheader[0] & 0xF;
-    transportHeader = ipheader + (headerLength * 4);
-    protocol = ipheader + 9;
-    version = 4;
+  int etherType = (data[12] << 8) | data[13];
+  const u_char *ip = data + 14;
+  unsigned int ipLength;
+
+  if (etherType == 0x0800) {
+    if (header->caplen < 34) {
+      packet.status = "Truncated IPv4";
+      return packet;
+    }
+
+    ipLength = (ip[0] & 0x0F) * 4;
+
+    if ((ip[0] >> 4) != 4 || ipLength < 20) {
+      packet.status = "Invalid IPv4 header";
+      return packet;
+    }
+
+    if (header->caplen < 14 + ipLength) {
+      packet.status = "Truncated IPv4 header";
+      return packet;
+    }
+
+    parseIPv4(ip, &packet);
+    parseProtocol(ip + 9, &packet);
+
+    int fragmentOffset = ((ip[6] << 8) | ip[7]) & 0x1FFF;
+    if (fragmentOffset != 0) {
+      packet.status = "Non-first IPv4 fragment";
+      return packet;
+    }
+  } else if (etherType == 0x86DD) {
+    if (header->caplen < 54) {
+      packet.status = "Truncated IPv6";
+      return packet;
+    }
+
+    if ((ip[0] >> 4) != 6) {
+      packet.status = "Invalid IPv6 header";
+      return packet;
+    }
+
+    ipLength = 40;
+    parseIPv6(ip, &packet);
+    parseProtocol(ip + 6, &packet);
   } else {
-    // IPV6
-    transportHeader = ipheader + 40;
-    protocol = ipheader + 6;
-    version = 6;
+    packet.status = "Unsupported EtherType";
+    return packet;
   }
 
-  std::cout << std::left << std::setw(8) << header->len;
-  if (version == 4) {
-    printIPv4(ipheader);
-  } else if (version == 6) {
-    printIPv6(ipheader);
+  if (packet.protocol != 6 && packet.protocol != 17) {
+    packet.status = "Ports unavailable for this protocol";
+    return packet;
   }
-  printProtocol(protocol);
-  printPort(transportHeader);
-  std::endl(std::cout);
+
+  unsigned int ipPacketLength;
+  if (etherType == 0x0800) {
+    ipPacketLength = (ip[2] << 8) | ip[3];
+  } else {
+    ipPacketLength = 40 + ((ip[4] << 8) | ip[5]);
+  }
+
+  if (ipPacketLength < ipLength + 4) {
+    packet.status = "IP packet too short for ports";
+    return packet;
+  }
+
+  if (header->caplen < 14 + ipLength + 4) {
+    packet.status = "Truncated ports";
+    return packet;
+  }
+
+  parsePort(ip + ipLength, &packet);
+  return packet;
 }
 
-void loopPcap(pcap_t *pcap) {
+void printPacket(PacketInfo *p) {
+  std::string protocol = "Other";
+    if (p->protocol == -1) protocol = "-";
+    else if (p->protocol == 6) protocol = "TCP";
+    else if (p->protocol == 17) protocol = "UDP";
+    else if (p->protocol == 1) protocol = "ICMP";
+    else if (p->protocol == 58) protocol = "ICMPv6";
+
+    std::cout << std::left
+              << std::setw(IP_WIDTH)
+              << (p->sourceIP.empty() ? "-" : p->sourceIP)
+              << std::setw(IP_WIDTH)
+              << (p->destIP.empty() ? "-" : p->destIP)
+              << std::setw(10) << protocol
+              << std::setw(10)
+              << (p->sourcePort < 0 ? "-" : std::to_string(p->sourcePort))
+              << std::setw(10)
+              << (p->destPort < 0 ? "-" : std::to_string(p->destPort));
+
+    if (!p->status.empty()) {
+        std::cout << "  " << p->status;
+    }
+
+    std::cout << '\n';
+}
+
+void loopPcap(pcap_t *pcap, bool detailed) {
   pcap_pkthdr *header;
   const u_char *data;
-  int packetNum = 1;
-  std::cout << std::left << std::setw(8) << "No." << std::setw(8)<< "Bytes" << std::setw(IP_WIDTH)
-            << "Source IP" << std::setw(IP_WIDTH) << "Destination IP" << std::setw(10)
-            << "Protocol" << std::setw(10) << "Src Port" << std::setw(10)
-            << "Dest Port" << "\n";
+  pcapInfo pcapp{};
+  if (detailed) {
+    std::cout << std::left << std::setw(8) << "No." << std::setw(8) << "Bytes"
+              << std::setw(IP_WIDTH) << "SourceIP" << std::setw(IP_WIDTH)
+              << "DestinationIP" << std::setw(10) << "Protocol" << std::setw(10)
+              << "SrcPort" << std::setw(10) << "DestPort" << "\n";
+  }
   while (1) {
     int t = pcap_next_ex(pcap, &header, &data);
     if (t == PCAP_ERROR) {
@@ -179,11 +261,27 @@ void loopPcap(pcap_t *pcap) {
     } else if (t == PCAP_ERROR_BREAK) {
       break;
     } else if (t == 1) {
-      std::cout << std::setw(8) << packetNum;
-      printPacket(header, data);
-      packetNum++;
+      pcapp.totalPackets++;
+      pcapp.capturedBytes += header->caplen;
+
+      PacketInfo p = parsePacket(header, data);
+      if (p.protocol == 6) {
+        pcapp.tcpPackets++;
+      } else if (p.protocol == 17) {
+        pcapp.udpPackets++;
+      }
+      if (detailed) {
+        std::cout << std::left << std::setw(8) << pcapp.totalPackets << std::setw(8) << header->len;
+        printPacket(&p);
+      } 
     }
   }
+  if (!detailed) {
+    std::cout << "\nTotal packets: " << pcapp.totalPackets << "\n";
+    std::cout << "Total captured bytes: " << pcapp.capturedBytes << "\n";
+    std::cout << "TCP packets: " << pcapp.tcpPackets << "\n";
+    std::cout << "UDP packets: " << pcapp.udpPackets << "\n\n";
+    }
 }
 
 void openpcap(pcap_t *&pcap, const char *path) {
@@ -191,6 +289,24 @@ void openpcap(pcap_t *&pcap, const char *path) {
   if (!(pcap = pcap_open_offline(path, errbuf))) {
     std::cout << errbuf;
     exit(1);
+  }
+
+  int input;
+  std::cout << "Valid pcap, press 1 to see summary or 2 to see details: ";
+  bool valid = false;
+  while (!valid) {
+    std::cin >> input;
+    if (input == 1) {
+      loopPcap(pcap, false);
+      valid = true;
+    } else if (input == 2) {
+      loopPcap(pcap, true);
+      valid = true;
+    } else {
+      valid = false;
+      std::cout
+          << "Invalid input, press 1 to see summary or 2 to see details: ";
+    }
   }
 }
 
@@ -203,7 +319,6 @@ int main(int argc, char *argv[]) {
   }
 
   openpcap(handle, argv[1]);
-  loopPcap(handle);
 
   return 0;
 }
