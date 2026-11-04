@@ -122,18 +122,6 @@ void parseProtocol(const u_char *protocol, PacketInfo *p) {
   p->protocol = protocol[0];
 }
 
-bool checkIPVersion(const u_char *data) {
-  const u_char *type = data + 12;
-  u_int16_t typeValue = (type[0] << 8) | type[1];
-
-  if (typeValue == 0x0800) {
-    return true;
-  } else if (typeValue == 0x86DD) {
-    return false;
-  }
-  return false;
-}
-
 PacketInfo parsePacket(const pcap_pkthdr *header, const u_char *data) {
   PacketInfo packet;
 
@@ -219,28 +207,30 @@ PacketInfo parsePacket(const pcap_pkthdr *header, const u_char *data) {
 
 void printPacket(PacketInfo *p) {
   std::string protocol = "Other";
-    if (p->protocol == -1) protocol = "-";
-    else if (p->protocol == 6) protocol = "TCP";
-    else if (p->protocol == 17) protocol = "UDP";
-    else if (p->protocol == 1) protocol = "ICMP";
-    else if (p->protocol == 58) protocol = "ICMPv6";
+  if (p->protocol == -1)
+    protocol = "-";
+  else if (p->protocol == 6)
+    protocol = "TCP";
+  else if (p->protocol == 17)
+    protocol = "UDP";
+  else if (p->protocol == 1)
+    protocol = "ICMP";
+  else if (p->protocol == 58)
+    protocol = "ICMPv6";
 
-    std::cout << std::left
-              << std::setw(IP_WIDTH)
-              << (p->sourceIP.empty() ? "-" : p->sourceIP)
-              << std::setw(IP_WIDTH)
-              << (p->destIP.empty() ? "-" : p->destIP)
-              << std::setw(10) << protocol
-              << std::setw(10)
-              << (p->sourcePort < 0 ? "-" : std::to_string(p->sourcePort))
-              << std::setw(10)
-              << (p->destPort < 0 ? "-" : std::to_string(p->destPort));
+  std::cout << std::left << std::setw(IP_WIDTH)
+            << (p->sourceIP.empty() ? "-" : p->sourceIP) << std::setw(IP_WIDTH)
+            << (p->destIP.empty() ? "-" : p->destIP) << std::setw(10)
+            << protocol << std::setw(10)
+            << (p->sourcePort < 0 ? "-" : std::to_string(p->sourcePort))
+            << std::setw(10)
+            << (p->destPort < 0 ? "-" : std::to_string(p->destPort));
 
-    if (!p->status.empty()) {
-        std::cout << "  " << p->status;
-    }
+  if (!p->status.empty()) {
+    std::cout << "  " << p->status;
+  }
 
-    std::cout << '\n';
+  std::cout << '\n';
 }
 
 void loopPcap(pcap_t *pcap, bool detailed) {
@@ -271,9 +261,10 @@ void loopPcap(pcap_t *pcap, bool detailed) {
         pcapp.udpPackets++;
       }
       if (detailed) {
-        std::cout << std::left << std::setw(8) << pcapp.totalPackets << std::setw(8) << header->len;
+        std::cout << std::left << std::setw(8) << pcapp.totalPackets
+                  << std::setw(8) << header->len;
         printPacket(&p);
-      } 
+      }
     }
   }
   if (!detailed) {
@@ -281,7 +272,7 @@ void loopPcap(pcap_t *pcap, bool detailed) {
     std::cout << "Total captured bytes: " << pcapp.capturedBytes << "\n";
     std::cout << "TCP packets: " << pcapp.tcpPackets << "\n";
     std::cout << "UDP packets: " << pcapp.udpPackets << "\n\n";
-    }
+  }
 }
 
 void openpcap(pcap_t *&pcap, const char *path) {
@@ -306,6 +297,7 @@ void openpcap(pcap_t *&pcap, const char *path) {
       valid = false;
       std::cout
           << "Invalid input, press 1 to see summary or 2 to see details: ";
+      input = 0;
     }
   }
 }
@@ -319,6 +311,6 @@ int main(int argc, char *argv[]) {
   }
 
   openpcap(handle, argv[1]);
-
+  pcap_close(handle);
   return 0;
 }
