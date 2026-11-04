@@ -93,7 +93,7 @@ void parsePacket(const u_char* data, PacketInfo* Info) {
   //Protocol
   const u_char* protocol = data + 9;
   Info->protocol = protocol[0];    
-  std::cout << Info->protocol;
+  std::cout << "Protocol: " << protocolName(Info->protocol);
   
 }
 
@@ -111,6 +111,12 @@ void liveCapture() {
   if (!pcap) {
     std::cout << "pcap_t creation error";
     exit(0);
+  }
+  // Returns packet buffer every 100ms (if not it just waits until buffer full)
+  if (pcap_set_timeout(pcap, 100) != 0) { 
+    std::cerr << pcap_geterr(pcap) << "\n";
+    pcap_close(pcap);
+    return;
   }
   if (pcap_activate(pcap) != 0) {
     std::cout << "pcap_activate error";
@@ -131,8 +137,19 @@ void liveCapture() {
       case 1: {
         std::cout << "Captured" << header->caplen << "bytes" << std::endl;
         PacketInfo Packet{};
+        if (header->caplen < 14) {
+          break;
+        }
         if (pcap_datalink(pcap) == DLT_EN10MB) {
-          parsePacket(data+14, &Packet);             
+          u_int16_t typeIP = (data[12] << 8) | data[13];
+          if (typeIP == 0x0800) {
+            //IPv4
+            parsePacket(data+14, &Packet);             
+          } else if (typeIP == 0x86DD) {
+            //IPv6
+          } else {
+            //Skip parsing
+          }
         }
         updatePcap(&Info, &Packet);
         printPacket();
