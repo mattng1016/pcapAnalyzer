@@ -4,6 +4,7 @@
 #include <csignal>
 #include <map>
 #include <sys/types.h>
+#include <thread>
 
 struct ProtocolStats {
   uint64_t packets = 0;
@@ -24,6 +25,25 @@ struct pcapInfo {
   std::map<int, ProtocolStats> protocols;
   std::map<std::string, HostStats> hosts;
 };
+
+struct PacketInfo {
+  std::string srcAddress;
+  std::string destAddress;
+  int protocol;
+  int srcPort;
+  int destPort;
+};
+
+std::string protocolName(int protocol){
+  switch(protocol) {
+    case 6: return "TCP";
+    case 17: return "UDP";
+    case 1: return "ICMP";
+    case 58: return "ICMPv6";
+    case -1: return "Unknown";
+    default: return "Other";
+  }
+}
 
 int listDevice(pcap_if_t* alldevs) {
   int i = 1;
@@ -69,7 +89,15 @@ void parseProtocol() {
 
 }
 
-void parseIP() {
+void parsePacket(const u_char* data, PacketInfo* Info) {
+  //Protocol
+  const u_char* protocol = data + 9;
+  Info->protocol = protocol[0];    
+  std::cout << Info->protocol;
+  
+}
+
+void updatePcap(pcapInfo* pcap, PacketInfo* packet) {
 
 }
 
@@ -80,22 +108,49 @@ void liveCapture() {
   std::signal(SIGINT, handleStop);
 
   pcap_t* pcap = pcap_create(name.c_str(), errbuf);
-  pcap_activate(pcap);
+  if (!pcap) {
+    std::cout << "pcap_t creation error";
+    exit(0);
+  }
+  if (pcap_activate(pcap) != 0) {
+    std::cout << "pcap_activate error";
+    exit(0);
+  }
 
   std::cout << "\n Starting capture on " << name << "...\n";
-  std::cout << "Press C to stop\n"; 
+  std::cout << "Press CTRL+C to stop\n"; 
 
   pcap_pkthdr* header;
   const u_char* data;
   pcapInfo Info{};  
 
   while (!stopReq) {
-    if (pcap_next_ex(pcap, &header, &data) == 1) {
-                   
-    } else {
+    int result = pcap_next_ex(pcap, &header, &data);
 
+    switch(result) {
+      case 1: {
+        std::cout << "Captured" << header->caplen << "bytes" << std::endl;
+        PacketInfo Packet{};
+        if (pcap_datalink(pcap) == DLT_EN10MB) {
+          parsePacket(data+14, &Packet);             
+        }
+        updatePcap(&Info, &Packet);
+        printPacket();
+        break;
+      }
+      case 0:
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        break;
+      case PCAP_ERROR:
+        std::cerr << pcap_geterr(pcap) << "\n";
+        stopReq = -1;
+        break;
+      case PCAP_ERROR_BREAK:
+        stopReq = -1;
+        break;
     }
-  }
+ }
+  pcap_close(pcap);
 }
 
 int main (int argc, char *argv[]) {
