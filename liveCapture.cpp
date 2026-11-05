@@ -1,8 +1,10 @@
+#include <iomanip>
 #include <cstdint>
 #include <iostream>
 #include <pcap.h>
 #include <csignal>
 #include <map>
+#include <string>
 #include <sys/types.h>
 #include <thread>
 
@@ -81,20 +83,32 @@ void handleStop(int) {
   stopReq = 1;
 }
 
-void printPacket() {
-
-}
-
-void parseProtocol() {
-
+void printPacket(const PacketInfo* packet, u_int32_t bytes) {
+  std::cout << std::left << std::setw(10) << protocolName(packet->protocol)
+              << std::setw(41) << packet->srcAddress
+              << std::setw(41) << packet->destAddress
+              << std::setw(10) << packet->srcPort
+              << std::setw(10) << packet->destPort
+              << bytes << '\n'; 
 }
 
 void parsePacket(const u_char* data, PacketInfo* Info) {
-  //Protocol
+  // Protocol
   const u_char* protocol = data + 9;
   Info->protocol = protocol[0];    
-  std::cout << "Protocol: " << protocolName(Info->protocol);
   
+  // IP address
+  const u_char* srcIP = data + 12;
+  Info->srcAddress = std::to_string(srcIP[0]) + "." + std::to_string(srcIP[1]) + "." + std::to_string(srcIP[2]) + "." + std::to_string(srcIP[3]);
+  srcIP += 4;
+  Info->destAddress = std::to_string(srcIP[0]) + "." + std::to_string(srcIP[1]) + "." + std::to_string(srcIP[2]) + "." + std::to_string(srcIP[3]);
+
+  // Port
+  int networkHeaderLength = data[0] & 0x0F; 
+  const u_char* transportLayer = data + networkHeaderLength;
+  Info->srcPort = (transportLayer[0] << 8) | transportLayer[1];
+  transportLayer += 2;
+  Info->destPort = (transportLayer[0] << 8) | transportLayer[1];
 }
 
 void updatePcap(pcapInfo* pcap, PacketInfo* packet) {
@@ -135,7 +149,8 @@ void liveCapture() {
 
     switch(result) {
       case 1: {
-        std::cout << "Captured" << header->caplen << "bytes" << std::endl;
+        //std::cout << "Captured" << header->caplen << "bytes" << std::endl;
+        u_int32_t bytes = header->len;
         PacketInfo Packet{};
         if (header->caplen < 14) {
           break;
@@ -152,7 +167,7 @@ void liveCapture() {
           }
         }
         updatePcap(&Info, &Packet);
-        printPacket();
+        printPacket(&Packet, bytes);
         break;
       }
       case 0:
