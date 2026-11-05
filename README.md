@@ -1,6 +1,7 @@
 # pcapAnalyzer
 
 [GIF demo](#demo)
+
 A terminal packet analyzer written in C++ using libpcap, built and tested on macOS. It supports live capture and inspecting saved PCAP files.
 
 This is a learning project exploring C++, network headers, and traffic statistics.
