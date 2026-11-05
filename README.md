@@ -4,12 +4,9 @@ A terminal packet analyzer written in C++ using libpcap, built and tested on mac
 
 This is a learning project exploring C++, network headers, and traffic statistics.
 
-<table>
-  <tr>
-    <td width="50%" valign="top"><img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="100%"></td>
-    <td width="50%" valign="top"><img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="100%"></td>
-  </tr>
-</table>
+<img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="100%">
+
+<img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="100%">
 
 [View demo](#demo)
 
