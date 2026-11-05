@@ -1,4 +1,4 @@
-# pcapAnalyzer
+# pcapAnalyzer [View demo](#demo)
 
 A terminal packet analyzer written in C++ using libpcap, built and tested on macOS. It supports live capture and inspecting saved PCAP files.
 
@@ -7,8 +7,6 @@ This is a learning project exploring C++, network headers, and traffic statistic
 <img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="100%">
 
 <img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="100%">
-
-[View demo](#demo)
 
 ## Features
 
@@ -104,34 +102,7 @@ Statistics accumulate in protocol and host maps. Individual packets are processe
 A truncated capture can therefore have `caplen < len`.
 
 
-
-## Known limitations
-
-**This is a learning project and is still experimental.** The offline and live paths currently have different levels of validation.
-
-| Area | Current scope |
-| :--- | :--- |
-| Link layer | Plain Ethernet; VLAN tags, raw Wi-Fi, and loopback formats are unsupported. Offline inspection assumes Ethernet. |
-| Live parsing | Complete bounds checking is still needed. Truncated or malformed packets can produce incorrect results or crashes. |
-| Transport parsing | Live parsing does not yet correctly exclude non-TCP/UDP traffic, non-first IPv4 fragments, or IPv6 extension headers. |
-| Controls | Interface/input validation needs improvement; capture stopping can be delayed. |
-
-### Implementation notes
-
-- Unsupported live packets can appear as protocol `0` with zero-valued ports.
-- Invalid interface selections can fail or crash.
-- Live and offline code contain different definitions of identically named structs. These need consolidation or distinct names to satisfy C++ definition rules.
-- The capture-buffer timeout controls batching; it is not a guaranteed stop timer.
-- Protocol percentages use the total packet count as the denominator. Unidentified traffic may mean protocol rows do not sum to 100%.
-- Duration, average bandwidth, capture-file writing, and protocol reassembly are not implemented.
-
-
-
-## About
-
-Built to learn C++, compilation and linking, libpcap, and how network headers are represented as bytes.
-
-Capture files may contain private traffic. Use synthetic or sanitized captures when sharing examples, and only capture traffic you are authorized to inspect.
+**This is a learning project and is still experimental.
 
 ## Demo
 
