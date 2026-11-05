@@ -4,19 +4,7 @@ A terminal packet analyzer written in C++ using libpcap, built and tested on mac
 
 This is a learning project exploring C++, network headers, and traffic statistics.
 
-## Demo
-
-<img src="https://github.com/user-attachments/assets/58a9d98c-e584-4b57-899a-ce747763ef0b" alt="Animated demonstration of pcapAnalyzer in the terminal" width="850">
-
-Inspect individual packets, follow source and destination addresses, and see which protocols and hosts account for the traffic.
-
-### Screenshots
-
-<img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="1100">
-
-<img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="950">
-
-
+[View demo and screenshots](#demo)
 
 ## Features
 
@@ -140,3 +128,16 @@ A truncated capture can therefore have `caplen < len`.
 Built to learn C++, compilation and linking, libpcap, and how network headers are represented as bytes.
 
 Capture files may contain private traffic. Use synthetic or sanitized captures when sharing examples, and only capture traffic you are authorized to inspect.
+
+## Demo
+
+<img src="https://github.com/user-attachments/assets/58a9d98c-e584-4b57-899a-ce747763ef0b" alt="Animated demonstration of pcapAnalyzer in the terminal" width="850">
+
+### Screenshots
+
+<table>
+  <tr>
+    <td width="50%" valign="top"><img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="100%"></td>
+    <td width="50%" valign="top"><img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="100%"></td>
+  </tr>
+</table>
