@@ -1,42 +1,24 @@
-<div align="center">
-
 # pcapAnalyzer
 
-**Live traffic. Saved captures. A closer look at the packets.**
+A terminal packet analyzer written in C++ using libpcap, built and tested on macOS. It supports live capture and inspecting saved PCAP files.
 
-A C++ terminal packet analyzer built with libpcap on macOS.
-
-![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square)
-![libpcap](https://img.shields.io/badge/capture-libpcap-22c55e?style=flat-square)
-![macOS](https://img.shields.io/badge/platform-macOS-111827?style=flat-square)
-![Learning project](https://img.shields.io/badge/status-learning%20project-f59e0b?style=flat-square)
-
-[Demo](#demo) · [Quick start](#quick-start) · [Usage](#usage) · [Known limitations](#known-limitations)
-
-</div>
+This is a learning project exploring C++, network headers, and traffic statistics.
 
 ## Demo
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/58a9d98c-e584-4b57-899a-ce747763ef0b" alt="Animated demonstration of pcapAnalyzer in the terminal" width="850">
-</p>
+<img src="https://github.com/user-attachments/assets/58a9d98c-e584-4b57-899a-ce747763ef0b" alt="Animated demonstration of pcapAnalyzer in the terminal" width="850">
 
 Inspect individual packets, follow source and destination addresses, and see which protocols and hosts account for the traffic.
 
-<details>
-<summary><strong>View terminal screenshots</strong></summary>
+### Screenshots
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="1100">
-</p>
+<img src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" alt="pcapAnalyzer terminal output, wide view" width="1100">
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="950">
-</p>
+<img src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" alt="pcapAnalyzer terminal output, second view" width="950">
 
-</details>
 
-## What it does
+
+## Features
 
 | Mode | Output |
 | :--- | :--- |
@@ -120,8 +102,7 @@ Read packet → Parse headers → Update counters and maps → Print packet
 
 Statistics accumulate in protocol and host maps. Individual packets are processed as they arrive rather than stored for later browsing.
 
-<details>
-<summary><strong>Packet length: captured bytes vs original bytes</strong></summary>
+### Packet lengths
 
 - `caplen` is the number of bytes actually saved or delivered by the capture.
 - `len` is the packet's original length.
@@ -130,7 +111,7 @@ Statistics accumulate in protocol and host maps. Individual packets are processe
 
 A truncated capture can therefore have `caplen < len`.
 
-</details>
+
 
 ## Known limitations
 
@@ -143,8 +124,7 @@ A truncated capture can therefore have `caplen < len`.
 | Transport parsing | Live parsing does not yet correctly exclude non-TCP/UDP traffic, non-first IPv4 fragments, or IPv6 extension headers. |
 | Controls | Interface/input validation needs improvement; capture stopping can be delayed. |
 
-<details>
-<summary><strong>Additional implementation notes</strong></summary>
+### Implementation notes
 
 - Unsupported live packets can appear as protocol `0` with zero-valued ports.
 - Invalid interface selections can fail or crash.
@@ -153,7 +133,7 @@ A truncated capture can therefore have `caplen < len`.
 - Protocol percentages use the total packet count as the denominator. Unidentified traffic may mean protocol rows do not sum to 100%.
 - Duration, average bandwidth, capture-file writing, and protocol reassembly are not implemented.
 
-</details>
+
 
 ## About
 
