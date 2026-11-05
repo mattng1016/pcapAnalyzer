@@ -1,40 +1,17 @@
+#include <algorithm>
+#include <vector>
+#include <utility>
+#include <sstream>
 #include <iomanip>
-#include <cstdint>
 #include <iostream>
 #include <pcap.h>
 #include <csignal>
-#include <map>
 #include <string>
 #include <sys/types.h>
 #include <thread>
 
-struct ProtocolStats {
-  uint64_t packets = 0;
-  uint64_t bytes = 0;
-};
-
-struct HostStats {
-  uint64_t packetsSent = 0;
-  uint64_t packetsReceived = 0;
-  uint64_t bytesSent = 0;
-  uint64_t bytesReceived = 0;
-};
-
-struct pcapInfo {
-  int totalPackets = 0;
-  uint64_t capturedBytes = 0;
-
-  std::map<int, ProtocolStats> protocols;
-  std::map<std::string, HostStats> hosts;
-};
-
-struct PacketInfo {
-  std::string srcAddress;
-  std::string destAddress;
-  int protocol;
-  int srcPort;
-  int destPort;
-};
+#include "offlineCapture.h"
+#include "liveCapture.h"
 
 std::string protocolName(int protocol){
   switch(protocol) {
@@ -83,16 +60,19 @@ void handleStop(int) {
   stopReq = 1;
 }
 
-void printPacket(const PacketInfo* packet, u_int32_t bytes) {
+void printPacket(const PacketInfo* packet) {
   std::cout << std::left << std::setw(10) << protocolName(packet->protocol)
               << std::setw(41) << packet->srcAddress
+              << " -> "
               << std::setw(41) << packet->destAddress
+              << " :"
               << std::setw(10) << packet->srcPort
+              << " -> :"
               << std::setw(10) << packet->destPort
-              << bytes << '\n'; 
+              << " " << packet->bytes << '\n'; 
 }
 
-void parsePacket(const u_char* data, PacketInfo* Info) {
+void parseIPv4Packet(const u_char* data, PacketInfo* Info) {
   // Protocol
   const u_char* protocol = data + 9;
   Info->protocol = protocol[0];    
@@ -104,15 +84,144 @@ void parsePacket(const u_char* data, PacketInfo* Info) {
   Info->destAddress = std::to_string(srcIP[0]) + "." + std::to_string(srcIP[1]) + "." + std::to_string(srcIP[2]) + "." + std::to_string(srcIP[3]);
 
   // Port
-  int networkHeaderLength = data[0] & 0x0F; 
+  int networkHeaderLength = (data[0] & 0x0F) * 4; 
   const u_char* transportLayer = data + networkHeaderLength;
   Info->srcPort = (transportLayer[0] << 8) | transportLayer[1];
   transportLayer += 2;
   Info->destPort = (transportLayer[0] << 8) | transportLayer[1];
 }
 
-void updatePcap(pcapInfo* pcap, PacketInfo* packet) {
+void parseIPv6Packet(const u_char* data, PacketInfo* Info) {
+  // Protocol
+  const u_char* protocol = data + 6;
+  Info->protocol = protocol[0];
+  
+  const u_char* srcAddress = data + 8;
+  const u_char* destAddress = data + 24;
+  u_int16_t srcGroup[8]{};
+  u_int16_t destGroup[8]{};
+  const u_char* tempaddr = srcAddress;
+   
+  // IP Address
+  for (int i = 0; i < 8; i++) {
+    srcGroup[i] = (tempaddr[0] << 8) | tempaddr[1];
+    tempaddr += 2;
+  }
+  tempaddr = destAddress;
+  for (int i = 0; i < 8; i++) {
+    destGroup[i] = (tempaddr[0] << 8) | tempaddr[1];
+    tempaddr += 2;
+  }
+  Info->srcAddress = shrinkZero(srcGroup);
+  Info->destAddress = shrinkZero(destGroup);
 
+  // Port
+  const u_char* transportLayer = data + 40;
+  Info->srcPort = (transportLayer[0] << 8) | transportLayer[1];
+  transportLayer += 2;
+  Info->destPort = (transportLayer[0] << 8) | transportLayer[1]; 
+}
+
+void updatePcap(pcapInfo* pcap, PacketInfo* packet) {
+  pcap->capturedBytes += packet->bytes; 
+  pcap->totalPackets++; 
+  if (packet->protocol != -1) {
+    pcap->protocols[packet->protocol].packets++;
+    pcap->protocols[packet->protocol].bytes += packet->bytes;
+  }
+  if (!packet->srcAddress.empty()) {
+    pcap->hosts[packet->srcAddress].packetsSent++;
+    pcap->hosts[packet->srcAddress].bytesSent += packet->bytes;
+  }
+  if (!packet->destAddress.empty()) {
+    pcap->hosts[packet->destAddress].packetsReceived++;
+    pcap->hosts[packet->destAddress].bytesReceived += packet->bytes;
+  }
+}
+
+void printHeader() {
+  std::cout << std::left
+            << std::setw(10) << "Protocol"
+            << std::setw(41) << "Source IP"
+            << "    "
+            << std::setw(41) << "Destination IP"
+            << "  "
+            << std::setw(10) << "Src Port"
+            << "     "
+            << std::setw(10) << "Dst Port"
+            << " Captured Bytes\n";
+}
+
+void printPcapSummary(pcapInfo* info) {
+  const int width = 48;
+  const std::string border = "+" + std::string(width, '-') + "+";
+  auto row = [](const std::string& text) {
+    std::cout << "\033[32m|\033[0m " << std::left
+              << std::setw(47) << text << "\033[32m|\033[0m\n";
+  };
+  std::cout << "\n\033[32m" << border << "\033[0m\n";
+  row("Capture Summary");
+  std::cout << "\033[32m" << border << "\033[0m\n";
+  row("Total packets: " + std::to_string(info->totalPackets));
+  row("Captured bytes: " + std::to_string(info->capturedBytes));
+  row("Unique IP addresses: " + std::to_string(info->hosts.size()));
+  row("Protocols seen: " + std::to_string(info->protocols.size()));
+  std::cout << "\033[32m" << border << "\033[0m\n";
+}
+
+void printProtocolSummary(pcapInfo* info) {
+  const std::string border = "+--------------------+--------------+------------------+------------+";
+  std::cout << "\n\033[32mProtocol Distribution\033[0m\n"
+            << border << '\n'
+            << "| " << std::left << std::setw(18) << "Protocol"
+            << " | " << std::setw(12) << "Packets"
+            << " | " << std::setw(16) << "Captured bytes"
+            << " | " << std::setw(10) << "Percent" << " |\n"
+            << border << '\n';
+  for (const auto& entry : info->protocols) {
+    const auto& stats = entry.second;
+    double percent = info->totalPackets > 0
+        ? 100.0 * stats.packets / info->totalPackets : 0.0;
+    std::ostringstream percentage;
+    percentage << std::fixed << std::setprecision(1) << percent << '%';
+    std::string label = protocolName(entry.first);
+    if (label == "Other") label += " (" + std::to_string(entry.first) + ")";
+    std::cout << "| " << std::left << std::setw(18) << label
+              << " | " << std::setw(12) << stats.packets
+              << " | " << std::setw(16) << stats.bytes
+              << " | " << std::setw(10) << percentage.str() << " |\n";
+  }
+  std::cout << border << '\n';
+}
+
+void printAddressSummary(pcapInfo* info) {
+  std::vector<std::pair<std::string, HostStats>> hosts(
+      info->hosts.begin(), info->hosts.end());
+  std::sort(hosts.begin(), hosts.end(),
+      [](const std::pair<std::string, HostStats>& a,
+         const std::pair<std::string, HostStats>& b) {
+        if (a.second.packetsSent != b.second.packetsSent)
+          return a.second.packetsSent > b.second.packetsSent;
+        return a.first < b.first;
+      });
+  const std::string border = "+-----------------------------------------+--------------+--------------+------------------+------------------+";
+  std::cout << "\n\033[32mTop 10 Talkers (by packets sent)\033[0m\n"
+            << border << '\n'
+            << "| " << std::left << std::setw(39) << "IP address"
+            << " | " << std::setw(12) << "Packets sent"
+            << " | " << std::setw(12) << "Packets recv"
+            << " | " << std::setw(16) << "Bytes sent"
+            << " | " << std::setw(16) << "Bytes recv" << " |\n"
+            << border << '\n';
+  for (std::size_t i = 0; i < hosts.size() && i < 10; ++i) {
+    const auto& host = hosts[i];
+    std::cout << "| " << std::left << std::setw(39) << host.first
+              << " | " << std::setw(12) << host.second.packetsSent
+              << " | " << std::setw(12) << host.second.packetsReceived
+              << " | " << std::setw(16) << host.second.bytesSent
+              << " | " << std::setw(16) << host.second.bytesReceived << " |\n";
+  }
+  std::cout << border << '\n';
 }
 
 void liveCapture() {
@@ -144,14 +253,15 @@ void liveCapture() {
   const u_char* data;
   pcapInfo Info{};  
 
+  printHeader();
+
   while (!stopReq) {
     int result = pcap_next_ex(pcap, &header, &data);
-
     switch(result) {
       case 1: {
         //std::cout << "Captured" << header->caplen << "bytes" << std::endl;
-        u_int32_t bytes = header->len;
         PacketInfo Packet{};
+        Packet.bytes = header->caplen;
         if (header->caplen < 14) {
           break;
         }
@@ -159,15 +269,16 @@ void liveCapture() {
           u_int16_t typeIP = (data[12] << 8) | data[13];
           if (typeIP == 0x0800) {
             //IPv4
-            parsePacket(data+14, &Packet);             
+            parseIPv4Packet(data+14, &Packet);             
           } else if (typeIP == 0x86DD) {
             //IPv6
+            parseIPv6Packet(data+14, &Packet);
           } else {
             //Skip parsing
           }
         }
         updatePcap(&Info, &Packet);
-        printPacket(&Packet, bytes);
+        printPacket(&Packet );
         break;
       }
       case 0:
@@ -182,15 +293,12 @@ void liveCapture() {
         break;
     }
  }
+  printPcapSummary(&Info);
+  printProtocolSummary(&Info);
+  printAddressSummary(&Info);
+
   pcap_close(pcap);
 }
-
-int main (int argc, char *argv[]) {
-  liveCapture();
-  return 0;
-}
-
-
 
 
 
