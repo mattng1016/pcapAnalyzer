@@ -4,6 +4,9 @@ A terminal packet analyzer written in C++ using libpcap, developed and tested on
 
 It supports inspecting saved PCAP files and capturing live traffic from a selected network interface.
 
+<img width="1256" height="453" alt="Screenshot 2026-11-04 at 9 48 26 PM" src="https://github.com/user-attachments/assets/4d9535a1-6a93-45c5-a52d-39127ec770c0" />
+<img width="1037" height="627" alt="Screenshot 2026-11-04 at 9 48 06 PM" src="https://github.com/user-attachments/assets/bac998c2-395c-4264-9f61-59c60799c9e1" />
+
 <img width="770" height="500" alt="ScreenRecording2026-11-04at9 37 34PM-ezgif com-video-to-gif-converter(1)" src="https://github.com/user-attachments/assets/58a9d98c-e584-4b57-899a-ce747763ef0b" />
 
 ## Features
